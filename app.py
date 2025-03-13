@@ -8,18 +8,56 @@ from datetime import datetime, timedelta
 st.set_page_config(
     page_title="Time Entry Analysis Dashboard",
     page_icon="⏱️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': "Time Entry Analysis Dashboard"
+    },
+    # Force light theme
+    theme="light"
 )
 
 # Modern UI styling - inspired by shadcn/ui
 st.markdown("""
 <style>
+    /* Force light mode */
+    html, body {
+        color-scheme: light !important;
+    }
+    
+    /* Override dark mode */
+    [data-theme="dark"] {
+        background-color: #ffffff !important;
+        color: #262730 !important;
+    }
+    
+    /* Ensure dark mode text is legible on light background */
+    [data-theme="dark"] .st-bq, 
+    [data-theme="dark"] .st-bb, 
+    [data-theme="dark"] .st-bc, 
+    [data-theme="dark"] .st-bd, 
+    [data-theme="dark"] .st-be { 
+        color: #262730 !important; 
+    }
+    
+    /* Ensure dark mode elements use light styles */
+    [data-theme="dark"] label,
+    [data-theme="dark"] .stMarkdown,
+    [data-theme="dark"] .stButton,
+    [data-theme="dark"] .stSelectbox label, 
+    [data-theme="dark"] .stDateInput label {
+        color: #262730 !important;
+    }
+    
     /* Modern Font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     /* Global Styles */
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #ffffff;
     }
     
     /* Typography */
@@ -47,6 +85,8 @@ st.markdown("""
         padding: 0.5rem 1rem !important;
         font-weight: 500 !important;
         transition: all 0.2s ease !important;
+        background-color: #6366f1 !important; 
+        color: white !important;
     }
     
     .stButton>button:hover {
@@ -57,16 +97,18 @@ st.markdown("""
     /* Input styling */
     [data-baseweb="input"] {
         border-radius: 6px !important;
+        background-color: white !important;
     }
     
     /* Dropdown styling */
     [data-baseweb="select"] {
         border-radius: 6px !important;
+        background-color: white !important;
     }
     
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
+        background-color: #f8f9fa !important;
         border-right: 1px solid #e9ecef;
     }
     
@@ -98,6 +140,27 @@ st.markdown("""
     
     .bg-accent {
         background-color: #6366f1;
+    }
+    
+    /* Streamlit base styles in light mode */
+    .stApp {
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Main content area background */
+    [data-testid="stAppViewBlockContainer"] {
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Light mode for dataframes */
+    [data-testid="stDataFrame"] th {
+        background-color: #f8f9fa !important; 
+        color: #262730 !important;
+    }
+    
+    [data-testid="stDataFrame"] td {
+        background-color: white !important;
+        color: #262730 !important; 
     }
 </style>
 """, unsafe_allow_html=True)
