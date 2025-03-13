@@ -8,14 +8,21 @@ import jwt
 import json
 import requests
 
-# Import authentication configuration
+# Get authentication configuration from Streamlit secrets or fallback to local config
 try:
-    from auth_config import GOOGLE_CLIENT_ID, ALLOWED_DOMAINS, ALLOWED_EMAILS
-except ImportError:
-    # Fallback for development or if file is missing
-    GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
-    ALLOWED_DOMAINS = ["yourcompany.com"]
-    ALLOWED_EMAILS = ["your.email@example.com"]
+    # First try to get from Streamlit secrets
+    GOOGLE_CLIENT_ID = st.secrets["auth"]["google_client_id"]
+    ALLOWED_DOMAINS = st.secrets["auth"]["allowed_domains"]
+    ALLOWED_EMAILS = st.secrets["auth"]["allowed_emails"]
+except (KeyError, FileNotFoundError):
+    # If not in secrets, try local config file
+    try:
+        from auth_config import GOOGLE_CLIENT_ID, ALLOWED_DOMAINS, ALLOWED_EMAILS
+    except ImportError:
+        # Fallback for development or if both files are missing
+        GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+        ALLOWED_DOMAINS = ["yourcompany.com"]
+        ALLOWED_EMAILS = ["your.email@example.com"]
 
 # Page configuration
 st.set_page_config(
