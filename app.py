@@ -17,8 +17,8 @@ import json
 import requests
 import base64
 
-# Enable debug mode
-DEBUG = True
+# Enable debug mode (only for troubleshooting)
+DEBUG = False
 
 # Debug function
 def debug(message):
@@ -260,9 +260,10 @@ if not st.session_state.authenticated:
     st.stop()
 
 # App starts here for authenticated users
-debug("User authenticated, displaying dashboard")
+if DEBUG:
+    debug("User authenticated, displaying dashboard")
 
-# Show user info in sidebar
+# Show user info and sign out in sidebar
 with st.sidebar:
     st.write(f"Signed in as: {st.session_state.user_info.get('name', 'User')}")
     if st.button("Sign Out"):
