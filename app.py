@@ -8,21 +8,36 @@ import jwt
 import json
 import requests
 
+# Enable debug mode
+DEBUG = True
+
+# Debug function
+def debug(message):
+    if DEBUG:
+        st.write(f"DEBUG: {message}")
+
 # Get authentication configuration from Streamlit secrets or fallback to local config
 try:
     # First try to get from Streamlit secrets
     GOOGLE_CLIENT_ID = st.secrets["auth"]["google_client_id"]
     ALLOWED_DOMAINS = st.secrets["auth"]["allowed_domains"]
     ALLOWED_EMAILS = st.secrets["auth"]["allowed_emails"]
-except (KeyError, FileNotFoundError):
+    debug(f"Using Google Client ID from secrets: {GOOGLE_CLIENT_ID[:10]}...")
+    debug(f"Allowed domains: {ALLOWED_DOMAINS}")
+    debug(f"Number of allowed emails: {len(ALLOWED_EMAILS)}")
+except (KeyError, FileNotFoundError) as e:
+    debug(f"Error accessing secrets: {str(e)}")
     # If not in secrets, try local config file
     try:
         from auth_config import GOOGLE_CLIENT_ID, ALLOWED_DOMAINS, ALLOWED_EMAILS
-    except ImportError:
+        debug(f"Using Google Client ID from local config: {GOOGLE_CLIENT_ID[:10]}...")
+    except ImportError as e:
+        debug(f"Error importing auth_config: {str(e)}")
         # Fallback for development or if both files are missing
         GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
         ALLOWED_DOMAINS = ["yourcompany.com"]
         ALLOWED_EMAILS = ["your.email@example.com"]
+        debug("Using fallback authentication configuration")
 
 # Page configuration
 st.set_page_config(
@@ -33,8 +48,11 @@ st.set_page_config(
 
 # Google Authentication Function
 def google_auth():
+    debug("Starting authentication process")
+    
     # Check if user is already authenticated
     if 'user_info' in st.session_state:
+        debug(f"User already authenticated: {st.session_state.user_info.get('email', 'unknown')}")
         return True
     
     # Create Google Sign-In button
@@ -57,11 +75,13 @@ def google_auth():
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
     function handleCredentialResponse(response) {{
+        console.log("Received Google response");
         const credential = response.credential;
         window.parent.postMessage({{
             type: "streamlit:setComponentValue",
             value: credential
         }}, "*");
+        console.log("Posted message to parent");
     }}
     </script>
     """
@@ -69,6 +89,7 @@ def google_auth():
     # Create a component for Google Sign-In
     cookie_manager = stx.CookieManager()
     token = cookie_manager.get("google_token")
+    debug(f"Cookie token exists: {token is not None}")
     
     if token is None:
         # Show sign-in button if not authenticated
@@ -76,26 +97,46 @@ def google_auth():
         st.markdown("<p style='text-align: center;'>Please sign in with your Google account to access the dashboard.</p>", unsafe_allow_html=True)
         
         # Display the Google Sign-In button
-        st.components.v1.html(auth_html, height=80)
+        debug("Displaying Google Sign-In button")
+        component = st.components.v1.html(auth_html, height=80)
         
-        # Check for token from component - Using the new st.query_params instead of deprecated st.experimental_get_query_params
+        # Check for token from component and URL parameters
+        debug(f"URL parameters: {dict(st.query_params)}")
         id_token = st.query_params.get("credential", None)
+        debug(f"Credential in URL: {'Yes' if id_token else 'No'}")
+        
+        # Also check component value
+        if component and hasattr(component, 'value') and component.value:
+            debug(f"Component has credential value: {component.value is not None}")
+            id_token = component.value
+        
         if id_token:
+            debug("Got token from URL or component")
             token = id_token
             cookie_manager.set("google_token", token)
+            debug("Token saved to cookie")
         else:
+            debug("No token found, authentication failed")
             return False
     
     try:
         # Decode the JWT token
+        debug("Attempting to decode JWT token")
         payload = jwt.decode(token, options={"verify_signature": False})
         
         # Extract user information
         email = payload.get("email", "")
         domain = email.split("@")[-1] if "@" in email else ""
+        debug(f"Extracted email: {email}")
+        debug(f"Extracted domain: {domain}")
         
         # Check if user is authorized
-        is_authorized = (domain in ALLOWED_DOMAINS) or (email in ALLOWED_EMAILS)
+        domain_authorized = domain in ALLOWED_DOMAINS
+        email_authorized = email in ALLOWED_EMAILS
+        is_authorized = domain_authorized or email_authorized
+        debug(f"Domain authorized: {domain_authorized}")
+        debug(f"Email authorized: {email_authorized}")
+        debug(f"Overall authorization: {is_authorized}")
         
         if is_authorized:
             st.session_state.user_info = {
@@ -103,25 +144,34 @@ def google_auth():
                 "name": payload.get("name", ""),
                 "picture": payload.get("picture", "")
             }
+            debug("User authorized and session state updated")
             return True
         else:
             st.error(f"Access denied. Your email {email} is not authorized to view this dashboard.")
+            debug(f"Access denied for {email}")
             # Add a sign out button
             if st.button("Sign Out"):
                 cookie_manager.delete("google_token")
                 st.session_state.pop("user_info", None)
+                debug("User signed out")
                 st.rerun()
             return False
     except Exception as e:
         st.error(f"Authentication error: {str(e)}")
+        debug(f"Exception during authentication: {str(e)}")
         if st.button("Try Again"):
             cookie_manager.delete("google_token")
+            debug("Token deleted, trying again")
             st.rerun()
         return False
 
 # Check authentication
+debug("Calling google_auth() function")
 if not google_auth():
+    debug("Authentication failed, stopping app")
     st.stop()
+
+debug("Authentication successful, proceeding with app")
 
 # Show user info if authenticated
 if 'user_info' in st.session_state:
@@ -132,6 +182,7 @@ if 'user_info' in st.session_state:
             cookie_manager = stx.CookieManager()
             cookie_manager.delete("google_token")
             st.session_state.pop("user_info", None)
+            debug("User signed out from sidebar")
             st.rerun()
 
 # Load and prepare data
