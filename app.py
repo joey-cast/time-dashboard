@@ -8,18 +8,10 @@ from datetime import datetime, timedelta
 st.set_page_config(
     page_title="Time Entry Analysis Dashboard",
     page_icon="⏱️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': None,
-        'Report a bug': None,
-        'About': "Time Entry Analysis Dashboard"
-    },
-    # Force light theme
-    theme="light"
+    layout="wide"
 )
 
-# Modern UI styling - inspired by shadcn/ui
+# Modern UI styling - inspired by shadcn/ui with forced light mode
 st.markdown("""
 <style>
     /* Force light mode */
@@ -110,6 +102,12 @@ st.markdown("""
     [data-testid="stSidebar"] {
         background-color: #f8f9fa !important;
         border-right: 1px solid #e9ecef;
+    }
+    
+    /* Always expand sidebar by default */
+    section[data-testid="stSidebar"] {
+        width: 250px !important;
+        min-width: 250px !important;
     }
     
     /* Login container */
