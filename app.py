@@ -78,10 +78,10 @@ def google_auth():
         # Display the Google Sign-In button
         st.components.v1.html(auth_html, height=80)
         
-        # Check for token from component
-        id_token = st.experimental_get_query_params().get("credential", None)
+        # Check for token from component - Using the new st.query_params instead of deprecated st.experimental_get_query_params
+        id_token = st.query_params.get("credential", None)
         if id_token:
-            token = id_token[0]
+            token = id_token
             cookie_manager.set("google_token", token)
         else:
             return False
@@ -110,13 +110,13 @@ def google_auth():
             if st.button("Sign Out"):
                 cookie_manager.delete("google_token")
                 st.session_state.pop("user_info", None)
-                st.experimental_rerun()
+                st.rerun()
             return False
     except Exception as e:
         st.error(f"Authentication error: {str(e)}")
         if st.button("Try Again"):
             cookie_manager.delete("google_token")
-            st.experimental_rerun()
+            st.rerun()
         return False
 
 # Check authentication
@@ -132,7 +132,7 @@ if 'user_info' in st.session_state:
             cookie_manager = stx.CookieManager()
             cookie_manager.delete("google_token")
             st.session_state.pop("user_info", None)
-            st.experimental_rerun()
+            st.rerun()
 
 # Load and prepare data
 @st.cache_data
