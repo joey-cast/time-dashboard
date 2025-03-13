@@ -11,45 +11,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# Modern UI styling - inspired by shadcn/ui with forced light mode
+# Modern UI styling - inspired by shadcn/ui with adaptive theming
 st.markdown("""
 <style>
-    /* Force light mode */
-    html, body {
-        color-scheme: light !important;
-    }
-    
-    /* Override dark mode */
-    [data-theme="dark"] {
-        background-color: #ffffff !important;
-        color: #262730 !important;
-    }
-    
-    /* Ensure dark mode text is legible on light background */
-    [data-theme="dark"] .st-bq, 
-    [data-theme="dark"] .st-bb, 
-    [data-theme="dark"] .st-bc, 
-    [data-theme="dark"] .st-bd, 
-    [data-theme="dark"] .st-be { 
-        color: #262730 !important; 
-    }
-    
-    /* Ensure dark mode elements use light styles */
-    [data-theme="dark"] label,
-    [data-theme="dark"] .stMarkdown,
-    [data-theme="dark"] .stButton,
-    [data-theme="dark"] .stSelectbox label, 
-    [data-theme="dark"] .stDateInput label {
-        color: #262730 !important;
-    }
-    
     /* Modern Font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     /* Global Styles */
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        background-color: #ffffff;
     }
     
     /* Typography */
@@ -64,7 +34,6 @@ st.markdown("""
     
     /* Card-like components */
     .stPlotlyChart, div[data-testid="stDataFrame"] {
-        background-color: white;
         border-radius: 12px;
         padding: 1rem;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -89,19 +58,16 @@ st.markdown("""
     /* Input styling */
     [data-baseweb="input"] {
         border-radius: 6px !important;
-        background-color: white !important;
     }
     
     /* Dropdown styling */
     [data-baseweb="select"] {
         border-radius: 6px !important;
-        background-color: white !important;
     }
     
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa !important;
-        border-right: 1px solid #e9ecef;
+        border-right: 1px solid rgba(128, 128, 128, 0.2);
     }
     
     /* Always expand sidebar by default */
@@ -115,7 +81,6 @@ st.markdown("""
         max-width: 400px;
         margin: 0 auto;
         padding: 2rem;
-        background-color: white;
         border-radius: 12px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
@@ -138,27 +103,6 @@ st.markdown("""
     
     .bg-accent {
         background-color: #6366f1;
-    }
-    
-    /* Streamlit base styles in light mode */
-    .stApp {
-        background-color: #f8f9fa !important;
-    }
-    
-    /* Main content area background */
-    [data-testid="stAppViewBlockContainer"] {
-        background-color: #f8f9fa !important;
-    }
-    
-    /* Light mode for dataframes */
-    [data-testid="stDataFrame"] th {
-        background-color: #f8f9fa !important; 
-        color: #262730 !important;
-    }
-    
-    [data-testid="stDataFrame"] td {
-        background-color: white !important;
-        color: #262730 !important; 
     }
 </style>
 """, unsafe_allow_html=True)
@@ -228,7 +172,7 @@ def load_data():
 
 # Page header with improved styling
 st.markdown("<h1 style='font-size: 2rem; margin-bottom: 0.5rem;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<p style='font-size: 1.1rem; color: #6b7280; margin-bottom: 2rem;'>Analyze and visualize categorized time entries</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 1.1rem; margin-bottom: 2rem;'>Analyze and visualize categorized time entries</p>", unsafe_allow_html=True)
 
 # Load data
 with st.spinner("Loading data..."):
@@ -595,10 +539,12 @@ with tab4:
 with tab5:
     st.subheader("Filter and Explore Time Entries")
     
-    # Create a card-like container for filters
-    st.markdown("""
-    <div style="background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
-    """, unsafe_allow_html=True)
+    # Create a card-like container for filters with adaptive styling
+    filter_container_style = """
+    <div style="padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+    """
+    
+    st.markdown(filter_container_style, unsafe_allow_html=True)
     
     # Filters
     col1, col2, col3 = st.columns(3)
@@ -661,14 +607,14 @@ with tab5:
     display_cols = ['local_date', 'employee', 'hours', 'service item', 'notes', 'classification', 'classification_reason']
     st.dataframe(table_df[display_cols].head(1000), use_container_width=True)
 
-# Add footer
+# Add footer with adaptive styling
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; padding: 1rem 0;">
-    <p style="color: #6b7280; font-size: 0.9rem;">
+    <p style="font-size: 0.9rem;">
         Dashboard powered by NLP time entry categorization
     </p>
-    <p style="color: #9ca3af; font-size: 0.8rem;">
+    <p style="font-size: 0.8rem; opacity: 0.7;">
         © 2023 Cast Financial
     </p>
 </div>
