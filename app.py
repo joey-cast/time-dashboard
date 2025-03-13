@@ -15,6 +15,7 @@ import extra_streamlit_components as stx
 import jwt
 import json
 import requests
+import base64
 
 # Enable debug mode
 DEBUG = True
@@ -38,6 +39,7 @@ try:
     ALLOWED_EMAILS = st.secrets["auth"]["allowed_emails"]
     APP_PASSWORD = st.secrets["auth"].get("password", "timecategorization")
     debug(f"Using Google Client ID from secrets: {GOOGLE_CLIENT_ID[:10]}...")
+    debug(f"Current app URL: {st.runtime.get_instance_url()}")
 except Exception as e:
     debug(f"Error accessing secrets: {str(e)}")
     # Fallback values
@@ -78,18 +80,68 @@ def password_auth():
         debug("Switching to Google authentication")
         st.rerun()
 
+# Manual token entry function
+def manual_token_auth():
+    st.markdown("### Manual Token Entry")
+    st.write("If the Google Sign-In button doesn't work, you can manually enter the JWT token.")
+    token = st.text_area("Paste JWT Token here", height=100)
+    
+    if st.button("Submit Token"):
+        if token:
+            try:
+                # Decode the JWT token
+                payload = jwt.decode(token, options={"verify_signature": False})
+                
+                # Extract user information
+                email = payload.get("email", "")
+                domain = email.split("@")[-1] if "@" in email else ""
+                
+                # Check if user is authorized
+                domain_authorized = domain in ALLOWED_DOMAINS
+                email_authorized = email in ALLOWED_EMAILS
+                is_authorized = domain_authorized or email_authorized
+                
+                debug(f"Email: {email}, Domain: {domain}")
+                debug(f"Domain authorized: {domain_authorized}, Email authorized: {email_authorized}")
+                
+                if is_authorized:
+                    st.session_state.authenticated = True
+                    st.session_state.user_info = {
+                        "email": email,
+                        "name": payload.get("name", ""),
+                        "picture": payload.get("picture", "")
+                    }
+                    debug("Manual token authentication successful")
+                    st.rerun()
+                else:
+                    st.error(f"Access denied. Your email {email} is not authorized to view this dashboard.")
+            except Exception as e:
+                st.error(f"Invalid token: {str(e)}")
+    
+    st.markdown("<hr>", unsafe_allow_html=True)
+
 # Google authentication function
 def google_auth():
     st.markdown("<h1 style='text-align: center;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>Please sign in with your Google account to access the dashboard.</p>", unsafe_allow_html=True)
     
+    # Get current URL for redirect
+    current_url = st.runtime.get_instance_url()
+    if current_url:
+        debug(f"App URL for redirect: {current_url}")
+    else:
+        current_url = "https://time-dashboard-endqossszbbsxojpt95dct.streamlit.app"
+        debug(f"Using hardcoded URL for redirect: {current_url}")
+    
     # Create Google Sign-In button
     auth_html = f"""
-    <div style="display: flex; justify-content: center; margin-top: 20px;">
+    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 20px;">
         <div id="g_id_onload"
             data-client_id="{GOOGLE_CLIENT_ID}"
             data-callback="handleCredentialResponse"
-            data-auto_prompt="false">
+            data-auto_prompt="false"
+            data-ux_mode="redirect"
+            data-login_uri="{current_url}">
         </div>
         <div class="g_id_signin"
             data-type="standard"
@@ -99,6 +151,9 @@ def google_auth():
             data-shape="rectangular"
             data-logo_alignment="left">
         </div>
+        <p style="margin-top: 10px; font-size: 0.8em; color: #666;">
+            If sign-in button doesn't work, try disabling popup blockers or privacy extensions.
+        </p>
     </div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
@@ -106,18 +161,49 @@ def google_auth():
         console.log("Received Google response");
         const credential = response.credential;
         
-        // Redirect with token in URL parameter
-        window.location.href = window.location.pathname + "?credential=" + credential;
+        // Try both methods to increase chances of success
+        try {{
+            // Method 1: Redirect with token in URL parameter
+            window.location.href = window.location.pathname + "?credential=" + encodeURIComponent(credential);
+        }} catch (e) {{
+            console.error("Redirect failed:", e);
+            // Method 2: Try to use localStorage as fallback
+            try {{
+                localStorage.setItem("google_credential", credential);
+                window.location.reload();
+            }} catch (e2) {{
+                console.error("LocalStorage fallback failed:", e2);
+            }}
+        }}
     }}
     </script>
     """
     
     # Display the Google Sign-In button
-    st.components.v1.html(auth_html, height=80)
+    st.components.v1.html(auth_html, height=120)
     
-    # Get credential from URL parameter
-    credential = st.query_params.get("credential", None)
-    debug(f"Credential in URL: {'Yes' if credential else 'No'}")
+    # Check for token in multiple places
+    credential = None
+    
+    # 1. Check URL parameters
+    url_credential = st.query_params.get("credential", None)
+    if url_credential:
+        debug("Found credential in URL parameters")
+        credential = url_credential
+    
+    # 2. Check for token in the ID token response
+    id_token_response = st.query_params.get("id_token", None) or st.query_params.get("token", None)
+    if id_token_response and not credential:
+        debug("Found credential in id_token parameter")
+        credential = id_token_response
+    
+    # 3. Check for Google's response parameters
+    for param in ['credential', 'id_token', 'token', 'code']:
+        if param in st.query_params and not credential:
+            debug(f"Found credential in {param} parameter")
+            credential = st.query_params[param]
+    
+    debug(f"Credential found: {'Yes' if credential else 'No'}")
     
     if credential:
         try:
@@ -159,6 +245,10 @@ def google_auth():
             if st.button("Try Again"):
                 st.query_params.clear()
                 st.rerun()
+    
+    # Display manual token entry option for troubleshooting
+    with st.expander("Having trouble? Try manual authentication"):
+        manual_token_auth()
     
     st.markdown("<p style='text-align: center;'>or</p>", unsafe_allow_html=True)
     if st.button("Use Password Instead"):
