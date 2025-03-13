@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Page configuration must be the first Streamlit command
+st.set_page_config(
+    page_title="Time Entry Analysis Dashboard",
+    page_icon="⏱️",
+    layout="wide"
+)
+
 import pandas as pd
 import plotly.express as px
 import numpy as np
@@ -38,13 +46,6 @@ except (KeyError, FileNotFoundError) as e:
         ALLOWED_DOMAINS = ["yourcompany.com"]
         ALLOWED_EMAILS = ["your.email@example.com"]
         debug("Using fallback authentication configuration")
-
-# Page configuration
-st.set_page_config(
-    page_title="Time Entry Analysis Dashboard",
-    page_icon="⏱️",
-    layout="wide"
-)
 
 # Google Authentication Function
 def google_auth():
