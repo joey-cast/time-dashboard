@@ -3,6 +3,19 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 from datetime import datetime, timedelta
+import extra_streamlit_components as stx
+import jwt
+import json
+import requests
+
+# Import authentication configuration
+try:
+    from auth_config import GOOGLE_CLIENT_ID, ALLOWED_DOMAINS, ALLOWED_EMAILS
+except ImportError:
+    # Fallback for development or if file is missing
+    GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+    ALLOWED_DOMAINS = ["yourcompany.com"]
+    ALLOWED_EMAILS = ["your.email@example.com"]
 
 # Page configuration
 st.set_page_config(
@@ -10,6 +23,109 @@ st.set_page_config(
     page_icon="⏱️",
     layout="wide"
 )
+
+# Google Authentication Function
+def google_auth():
+    # Check if user is already authenticated
+    if 'user_info' in st.session_state:
+        return True
+    
+    # Create Google Sign-In button
+    auth_html = f"""
+    <div style="display: flex; justify-content: center; margin-top: 20px;">
+        <div id="g_id_onload"
+            data-client_id="{GOOGLE_CLIENT_ID}"
+            data-callback="handleCredentialResponse"
+            data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+            data-type="standard"
+            data-size="large"
+            data-theme="outline"
+            data-text="sign_in_with"
+            data-shape="rectangular"
+            data-logo_alignment="left">
+        </div>
+    </div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+    function handleCredentialResponse(response) {{
+        const credential = response.credential;
+        window.parent.postMessage({{
+            type: "streamlit:setComponentValue",
+            value: credential
+        }}, "*");
+    }}
+    </script>
+    """
+    
+    # Create a component for Google Sign-In
+    cookie_manager = stx.CookieManager()
+    token = cookie_manager.get("google_token")
+    
+    if token is None:
+        # Show sign-in button if not authenticated
+        st.markdown("<h1 style='text-align: center;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Please sign in with your Google account to access the dashboard.</p>", unsafe_allow_html=True)
+        
+        # Display the Google Sign-In button
+        st.components.v1.html(auth_html, height=80)
+        
+        # Check for token from component
+        id_token = st.experimental_get_query_params().get("credential", None)
+        if id_token:
+            token = id_token[0]
+            cookie_manager.set("google_token", token)
+        else:
+            return False
+    
+    try:
+        # Decode the JWT token
+        payload = jwt.decode(token, options={"verify_signature": False})
+        
+        # Extract user information
+        email = payload.get("email", "")
+        domain = email.split("@")[-1] if "@" in email else ""
+        
+        # Check if user is authorized
+        is_authorized = (domain in ALLOWED_DOMAINS) or (email in ALLOWED_EMAILS)
+        
+        if is_authorized:
+            st.session_state.user_info = {
+                "email": email,
+                "name": payload.get("name", ""),
+                "picture": payload.get("picture", "")
+            }
+            return True
+        else:
+            st.error(f"Access denied. Your email {email} is not authorized to view this dashboard.")
+            # Add a sign out button
+            if st.button("Sign Out"):
+                cookie_manager.delete("google_token")
+                st.session_state.pop("user_info", None)
+                st.experimental_rerun()
+            return False
+    except Exception as e:
+        st.error(f"Authentication error: {str(e)}")
+        if st.button("Try Again"):
+            cookie_manager.delete("google_token")
+            st.experimental_rerun()
+        return False
+
+# Check authentication
+if not google_auth():
+    st.stop()
+
+# Show user info if authenticated
+if 'user_info' in st.session_state:
+    user = st.session_state.user_info
+    with st.sidebar:
+        st.write(f"Signed in as: {user['name']}")
+        if st.button("Sign Out"):
+            cookie_manager = stx.CookieManager()
+            cookie_manager.delete("google_token")
+            st.session_state.pop("user_info", None)
+            st.experimental_rerun()
 
 # Load and prepare data
 @st.cache_data
