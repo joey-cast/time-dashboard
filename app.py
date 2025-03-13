@@ -1,4 +1,8 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
+import numpy as np
+from datetime import datetime, timedelta
 
 # Page configuration must be the first Streamlit command
 st.set_page_config(
@@ -7,270 +11,150 @@ st.set_page_config(
     layout="wide"
 )
 
-import pandas as pd
-import plotly.express as px
-import numpy as np
-from datetime import datetime, timedelta
-import extra_streamlit_components as stx
-import jwt
-import json
-import requests
-import base64
+# Modern UI styling - inspired by shadcn/ui
+st.markdown("""
+<style>
+    /* Modern Font */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Global Styles */
+    html, body, [data-testid="stAppViewContainer"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Typography */
+    h1, h2, h3, h4, h5, h6 {
+        font-weight: 600 !important;
+    }
+    
+    /* Container styling */
+    [data-testid="stVerticalBlock"] {
+        border-radius: 8px;
+    }
+    
+    /* Card-like components */
+    .stPlotlyChart, div[data-testid="stDataFrame"] {
+        background-color: white;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    
+    /* Button styling */
+    button[kind="primary"], .stButton>button {
+        border-radius: 6px !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .stButton>button:hover {
+        opacity: 0.9 !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Input styling */
+    [data-baseweb="input"] {
+        border-radius: 6px !important;
+    }
+    
+    /* Dropdown styling */
+    [data-baseweb="select"] {
+        border-radius: 6px !important;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+        border-right: 1px solid #e9ecef;
+    }
+    
+    /* Login container */
+    .login-container {
+        max-width: 400px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 4px 4px 0px 0px;
+        padding: 10px 16px;
+        font-weight: 500;
+    }
+    
+    /* Color scheme - Can be adjusted to match your brand */
+    .main-accent {
+        color: #6366f1;
+    }
+    
+    .bg-accent {
+        background-color: #6366f1;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Enable debug mode (only for troubleshooting)
-DEBUG = False
-
-# Debug function
-def debug(message):
-    if DEBUG:
-        st.write(f"DEBUG: {message}")
-
-# Authentication options
-AUTH_OPTIONS = {
-    "google": "Google Authentication",
-    "password": "Password Authentication"
-}
-
-# Get secrets or fallback
+# Get password from secrets or use default
 try:
     # Try to get from Streamlit secrets
-    GOOGLE_CLIENT_ID = st.secrets["auth"]["google_client_id"]
-    ALLOWED_DOMAINS = st.secrets["auth"]["allowed_domains"]
-    ALLOWED_EMAILS = st.secrets["auth"]["allowed_emails"]
     APP_PASSWORD = st.secrets["auth"].get("password", "timecategorization")
-    debug(f"Using Google Client ID from secrets: {GOOGLE_CLIENT_ID[:10]}...")
 except Exception as e:
-    debug(f"Error accessing secrets: {str(e)}")
-    # Fallback values
-    GOOGLE_CLIENT_ID = "863808931763-veg0i2jpk5v0nuj6b3qde61kd0516cmi.apps.googleusercontent.com"
-    ALLOWED_DOMAINS = ["castfinance.com"]
-    ALLOWED_EMAILS = ["joey@castfinance.com", "matt@castfinance.com", "taylor@castfinance.com"]
+    # Fallback password
     APP_PASSWORD = "timecategorization"
-    debug("Using fallback authentication configuration")
 
 # Initialize session state for authentication
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
-if "auth_method" not in st.session_state:
-    st.session_state.auth_method = "google"
 if "user_info" not in st.session_state:
     st.session_state.user_info = None
 
 # Password authentication function
 def password_auth():
-    st.markdown("<h1 style='text-align: center;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Please enter the dashboard password:</p>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
     
-    password = st.text_input("Password", type="password", key="password_input")
-    
-    if st.button("Login"):
-        if password == APP_PASSWORD:
-            st.session_state.authenticated = True
-            st.session_state.user_info = {"name": "Team Member", "email": "team@castfinance.com"}
-            debug("Password authentication successful")
-            st.rerun()
-        else:
-            st.error("Incorrect password. Please try again.")
-            debug("Password authentication failed")
-    
-    st.markdown("<p style='text-align: center;'>or</p>", unsafe_allow_html=True)
-    if st.button("Try Google Authentication instead"):
-        st.session_state.auth_method = "google"
-        debug("Switching to Google authentication")
-        st.rerun()
-
-# Manual token entry function
-def manual_token_auth():
-    st.markdown("### Manual Token Entry")
-    st.write("If the Google Sign-In button doesn't work, you can manually enter the JWT token.")
-    token = st.text_area("Paste JWT Token here", height=100)
-    
-    if st.button("Submit Token"):
-        if token:
-            try:
-                # Decode the JWT token
-                payload = jwt.decode(token, options={"verify_signature": False})
-                
-                # Extract user information
-                email = payload.get("email", "")
-                domain = email.split("@")[-1] if "@" in email else ""
-                
-                # Check if user is authorized
-                domain_authorized = domain in ALLOWED_DOMAINS
-                email_authorized = email in ALLOWED_EMAILS
-                is_authorized = domain_authorized or email_authorized
-                
-                debug(f"Email: {email}, Domain: {domain}")
-                debug(f"Domain authorized: {domain_authorized}, Email authorized: {email_authorized}")
-                
-                if is_authorized:
-                    st.session_state.authenticated = True
-                    st.session_state.user_info = {
-                        "email": email,
-                        "name": payload.get("name", ""),
-                        "picture": payload.get("picture", "")
-                    }
-                    debug("Manual token authentication successful")
-                    st.rerun()
-                else:
-                    st.error(f"Access denied. Your email {email} is not authorized to view this dashboard.")
-            except Exception as e:
-                st.error(f"Invalid token: {str(e)}")
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-# Google authentication function
-def google_auth():
-    st.markdown("<h1 style='text-align: center;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Please sign in with your Google account to access the dashboard.</p>", unsafe_allow_html=True)
-    
-    # Use the deployment URL directly
-    current_url = "https://time-dashboard-endqossszbbsxojpt95dct.streamlit.app"
-    debug(f"Using app URL for redirect: {current_url}")
-    
-    # Create Google Sign-In button
-    auth_html = f"""
-    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 20px;">
-        <div id="g_id_onload"
-            data-client_id="{GOOGLE_CLIENT_ID}"
-            data-callback="handleCredentialResponse"
-            data-auto_prompt="false">
-        </div>
-        <div class="g_id_signin"
-            data-type="standard"
-            data-size="large"
-            data-theme="outline"
-            data-text="sign_in_with"
-            data-shape="rectangular"
-            data-logo_alignment="left">
-        </div>
-        <p style="margin-top: 10px; font-size: 0.8em; color: #666;">
-            If sign-in button doesn't work, try disabling popup blockers or privacy extensions.
-        </p>
-    </div>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script>
-    function handleCredentialResponse(response) {{
-        console.log("Received Google response");
-        const credential = response.credential;
+    with col2:
+        st.markdown("<div class='login-container'>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; font-size: 1.8rem;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Please enter the dashboard password to continue</p>", unsafe_allow_html=True)
         
-        // Try both methods to increase chances of success
-        try {{
-            // Method 1: Redirect with token in URL parameter
-            window.location.href = window.location.pathname + "?credential=" + encodeURIComponent(credential);
-        }} catch (e) {{
-            console.error("Redirect failed:", e);
-            // Method 2: Try to use localStorage as fallback
-            try {{
-                localStorage.setItem("google_credential", credential);
-                window.location.reload();
-            }} catch (e2) {{
-                console.error("LocalStorage fallback failed:", e2);
-            }}
-        }}
-    }}
-    </script>
-    """
-    
-    # Display the Google Sign-In button
-    st.components.v1.html(auth_html, height=120)
-    
-    # Check for token in multiple places
-    credential = None
-    
-    # 1. Check URL parameters
-    url_credential = st.query_params.get("credential", None)
-    if url_credential:
-        debug("Found credential in URL parameters")
-        credential = url_credential
-    
-    # 2. Check for token in the ID token response
-    id_token_response = st.query_params.get("id_token", None) or st.query_params.get("token", None)
-    if id_token_response and not credential:
-        debug("Found credential in id_token parameter")
-        credential = id_token_response
-    
-    # 3. Check for Google's response parameters
-    for param in ['credential', 'id_token', 'token', 'code']:
-        if param in st.query_params and not credential:
-            debug(f"Found credential in {param} parameter")
-            credential = st.query_params[param]
-    
-    debug(f"Credential found: {'Yes' if credential else 'No'}")
-    
-    if credential:
-        try:
-            # Decode the JWT token
-            payload = jwt.decode(credential, options={"verify_signature": False})
-            
-            # Extract user information
-            email = payload.get("email", "")
-            domain = email.split("@")[-1] if "@" in email else ""
-            
-            # Check if user is authorized
-            domain_authorized = domain in ALLOWED_DOMAINS
-            email_authorized = email in ALLOWED_EMAILS
-            is_authorized = domain_authorized or email_authorized
-            
-            debug(f"Email: {email}, Domain: {domain}")
-            debug(f"Domain authorized: {domain_authorized}, Email authorized: {email_authorized}")
-            
-            if is_authorized:
+        password = st.text_input("Password", type="password", key="password_input")
+        
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            login_button = st.button("Login", type="primary")
+        
+        if login_button:
+            if password == APP_PASSWORD:
                 st.session_state.authenticated = True
-                st.session_state.user_info = {
-                    "email": email,
-                    "name": payload.get("name", ""),
-                    "picture": payload.get("picture", "")
-                }
-                debug("Google authentication successful")
-                # Clear the credential from URL
-                st.query_params.clear()
+                st.session_state.user_info = {"name": "Team Member", "email": "team@castfinance.com"}
                 st.rerun()
             else:
-                st.error(f"Access denied. Your email {email} is not authorized to view this dashboard.")
-                debug(f"Access denied for {email}")
-                if st.button("Try Again"):
-                    st.query_params.clear()
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Authentication error: {str(e)}")
-            debug(f"Authentication error: {str(e)}")
-            if st.button("Try Again"):
-                st.query_params.clear()
-                st.rerun()
-    
-    # Display manual token entry option for troubleshooting
-    with st.expander("Having trouble? Try manual authentication"):
-        manual_token_auth()
-    
-    st.markdown("<p style='text-align: center;'>or</p>", unsafe_allow_html=True)
-    if st.button("Use Password Instead"):
-        st.session_state.auth_method = "password"
-        debug("Switching to password authentication")
-        st.rerun()
+                st.error("Incorrect password. Please try again.")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # Handle authentication
 if not st.session_state.authenticated:
-    if st.session_state.auth_method == "google":
-        google_auth()
-    else:
-        password_auth()
-    
+    password_auth()
     # Stop app execution for unauthenticated users
     st.stop()
 
 # App starts here for authenticated users
-if DEBUG:
-    debug("User authenticated, displaying dashboard")
 
-# Show user info and sign out in sidebar
+# Show user info and sign out button in sidebar
 with st.sidebar:
-    st.write(f"Signed in as: {st.session_state.user_info.get('name', 'User')}")
-    if st.button("Sign Out"):
+    st.markdown(f"**Signed in as:** {st.session_state.user_info.get('name', 'User')}")
+    if st.button("Sign Out", type="primary"):
         st.session_state.authenticated = False
         st.session_state.user_info = None
-        st.query_params.clear()
-        debug("User signed out")
         st.rerun()
 
 # Load and prepare data
@@ -281,15 +165,17 @@ def load_data():
     df['month_year'] = df['date'].dt.strftime('%Y-%m')
     return df
 
-st.title("Time Entry Analysis Dashboard")
-st.markdown("### Analyze categorized time entries")
+# Page header with improved styling
+st.markdown("<h1 style='font-size: 2rem; margin-bottom: 0.5rem;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 1.1rem; color: #6b7280; margin-bottom: 2rem;'>Analyze and visualize categorized time entries</p>", unsafe_allow_html=True)
 
 # Load data
 with st.spinner("Loading data..."):
     df = load_data()
 
-# Date filter section
-st.sidebar.header("Date Filter")
+# Date filter section with nicer styling
+st.sidebar.markdown("## Filters")
+st.sidebar.markdown("<div style='height: 0.5rem'></div>", unsafe_allow_html=True)
 
 # Date range options
 date_range_options = {
@@ -302,7 +188,7 @@ date_range_options = {
 }
 
 date_range = st.sidebar.selectbox(
-    "Select Date Range:",
+    "Date Range",
     options=list(date_range_options.keys()),
     format_func=lambda x: date_range_options[x],
     index=0
@@ -381,7 +267,7 @@ min_date_str = filtered_df['date'].min().strftime('%b %Y') if not pd.isna(filter
 max_date_str = filtered_df['date'].max().strftime('%b %Y') if not pd.isna(filtered_df['date'].max()) else "N/A"
 st.sidebar.markdown(f"**Date Range:** {min_date_str} to {max_date_str}")
 
-# Create tabs
+# Create tabs with shadcn-inspired styling
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Category Analysis", 
     "Service Item Analysis", 
@@ -409,7 +295,13 @@ with tab1:
             title="Total Hours by Category",
             color_continuous_scale=px.colors.sequential.Viridis
         )
-        fig.update_layout(xaxis={'categoryorder':'total descending'})
+        fig.update_layout(
+            xaxis={'categoryorder':'total descending'},
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font={'family': 'Inter, sans-serif'},
+            margin=dict(l=40, r=40, t=60, b=40),
+        )
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
@@ -420,6 +312,13 @@ with tab1:
             names='classification',
             title="Distribution of Hours by Category",
             color_discrete_sequence=px.colors.sequential.Viridis
+        )
+        fig.update_layout(
+            legend=dict(orientation="h", y=-0.2),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font={'family': 'Inter, sans-serif'},
+            margin=dict(l=20, r=20, t=60, b=20),
         )
         st.plotly_chart(fig, use_container_width=True)
     
@@ -457,6 +356,14 @@ with tab1:
         labels={'month_year': 'Month', 'hours': 'Hours', 'classification': 'Category'},
         title="Category Trends Over Time"
     )
+    fig.update_layout(
+        xaxis={'categoryorder':'array', 'categoryarray': sorted(filtered_time_category['month_year'].unique())},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3),
+        margin=dict(l=40, r=40, t=60, b=80),
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # Tab 2: Service Item Analysis
@@ -475,7 +382,14 @@ with tab2:
         title="Total Hours by Service Item (Top 10)",
         color_continuous_scale=px.colors.sequential.Plasma
     )
-    fig.update_layout(xaxis={'categoryorder':'total descending'})
+    fig.update_layout(
+        xaxis={'categoryorder':'total descending'},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        margin=dict(l=40, r=40, t=60, b=40),
+        hoverlabel=dict(font_family="Inter, sans-serif")
+    )
     st.plotly_chart(fig, use_container_width=True)
     
     # Category distribution by service item
@@ -499,6 +413,14 @@ with tab2:
         title=f"Category Distribution for {selected_service}",
         color_discrete_sequence=px.colors.sequential.Plasma
     )
+    fig.update_layout(
+        legend=dict(orientation="h", y=-0.2),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        margin=dict(l=20, r=20, t=60, b=20),
+        hoverlabel=dict(font_family="Inter, sans-serif")
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # Tab 3: Time Trends
@@ -515,6 +437,14 @@ with tab3:
         labels={'month_year': 'Month', 'hours': 'Total Hours'},
         title="Total Hours by Month"
     )
+    fig.update_layout(
+        xaxis={'categoryorder':'array', 'categoryarray': sorted(monthly_hours['month_year'].unique())},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        margin=dict(l=40, r=40, t=60, b=40),
+        hoverlabel=dict(font_family="Inter, sans-serif")
+    )
     st.plotly_chart(fig, use_container_width=True)
     
     # Heatmap
@@ -529,6 +459,14 @@ with tab3:
         labels={'month_year': 'Month', 'classification': 'Category', 'hours': 'Hours'},
         title="Hours by Category and Month",
         color_continuous_scale=px.colors.sequential.Viridis
+    )
+    fig.update_layout(
+        xaxis={'categoryorder':'array', 'categoryarray': sorted(time_category['month_year'].unique())},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        margin=dict(l=60, r=40, t=60, b=40),
+        hoverlabel=dict(font_family="Inter, sans-serif")
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -548,6 +486,14 @@ with tab4:
         labels={'full_name': 'Employee', 'hours': 'Total Hours'},
         title="Total Hours by Employee (Top 10)",
         color_continuous_scale=px.colors.sequential.Turbo
+    )
+    fig.update_layout(
+        xaxis={'categoryorder':'total descending'},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        margin=dict(l=40, r=40, t=60, b=40),
+        hoverlabel=dict(font_family="Inter, sans-serif")
     )
     st.plotly_chart(fig, use_container_width=True)
     
@@ -574,11 +520,24 @@ with tab4:
             title=f"Category Distribution for {selected_user}",
             color_discrete_sequence=px.colors.sequential.Turbo
         )
+        fig.update_layout(
+            legend=dict(orientation="h", y=-0.2),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font={'family': 'Inter, sans-serif'},
+            margin=dict(l=20, r=20, t=60, b=20),
+            hoverlabel=dict(font_family="Inter, sans-serif")
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 # Tab 5: Data Explorer
 with tab5:
     st.subheader("Filter and Explore Time Entries")
+    
+    # Create a card-like container for filters
+    st.markdown("""
+    <div style="background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+    """, unsafe_allow_html=True)
     
     # Filters
     col1, col2, col3 = st.columns(3)
@@ -611,6 +570,8 @@ with tab5:
             index=0
         )
     
+    st.markdown("</div>", unsafe_allow_html=True)
+    
     # Apply filters
     table_df = filtered_df.copy()
     table_df['employee'] = table_df['fname'] + ' ' + table_df['lname']
@@ -631,10 +592,23 @@ with tab5:
     elif sort_by == 'hours_asc':
         table_df = table_df.sort_values('hours', ascending=True)
     
+    # Display table with record count info
+    record_count = len(table_df)
+    st.markdown(f"<p style='margin-bottom: 10px;'>Showing {min(record_count, 1000)} of {record_count} records</p>", unsafe_allow_html=True)
+    
     # Display table
     display_cols = ['local_date', 'employee', 'hours', 'service item', 'notes', 'classification', 'classification_reason']
     st.dataframe(table_df[display_cols].head(1000), use_container_width=True)
 
 # Add footer
 st.markdown("---")
-st.markdown("Dashboard powered by NLP time entry categorization") 
+st.markdown("""
+<div style="text-align: center; padding: 1rem 0;">
+    <p style="color: #6b7280; font-size: 0.9rem;">
+        Dashboard powered by NLP time entry categorization
+    </p>
+    <p style="color: #9ca3af; font-size: 0.8rem;">
+        © 2023 Cast Financial
+    </p>
+</div>
+""", unsafe_allow_html=True) 
