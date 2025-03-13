@@ -39,7 +39,6 @@ try:
     ALLOWED_EMAILS = st.secrets["auth"]["allowed_emails"]
     APP_PASSWORD = st.secrets["auth"].get("password", "timecategorization")
     debug(f"Using Google Client ID from secrets: {GOOGLE_CLIENT_ID[:10]}...")
-    debug(f"Current app URL: {st.runtime.get_instance_url()}")
 except Exception as e:
     debug(f"Error accessing secrets: {str(e)}")
     # Fallback values
@@ -125,13 +124,9 @@ def google_auth():
     st.markdown("<h1 style='text-align: center;'>Time Entry Analysis Dashboard</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>Please sign in with your Google account to access the dashboard.</p>", unsafe_allow_html=True)
     
-    # Get current URL for redirect
-    current_url = st.runtime.get_instance_url()
-    if current_url:
-        debug(f"App URL for redirect: {current_url}")
-    else:
-        current_url = "https://time-dashboard-endqossszbbsxojpt95dct.streamlit.app"
-        debug(f"Using hardcoded URL for redirect: {current_url}")
+    # Use the deployment URL directly
+    current_url = "https://time-dashboard-endqossszbbsxojpt95dct.streamlit.app"
+    debug(f"Using app URL for redirect: {current_url}")
     
     # Create Google Sign-In button
     auth_html = f"""
@@ -139,9 +134,7 @@ def google_auth():
         <div id="g_id_onload"
             data-client_id="{GOOGLE_CLIENT_ID}"
             data-callback="handleCredentialResponse"
-            data-auto_prompt="false"
-            data-ux_mode="redirect"
-            data-login_uri="{current_url}">
+            data-auto_prompt="false">
         </div>
         <div class="g_id_signin"
             data-type="standard"
